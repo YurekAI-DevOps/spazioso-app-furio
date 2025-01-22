@@ -67,11 +67,12 @@ const isAgency = (baseUrl: string): boolean => {
     return false;
   }
 
+  console.log(url.pathname);
   return (
     /estates$/.test(baseUrl) || 
     /* /builder\/projects$/.test(baseUrl) || At the moment the MLS does not require Agency page built with builder-app */
     /estates/.test(url.pathname) && params.has('uuids') ||
-    /builder\/projects/.test(url.pathname) && params.has('ids')
+    /builder\/projects$/.test(url.pathname) // && params.has('ids')
   )
 };
   
@@ -100,9 +101,34 @@ export const getStaticPaths: GetStaticPaths = async () => {
   const pageModules = await PLASMIC.fetchPages();
   const items = [];
   try {
-    let response = await getDataSources()
-    
-    const [ result ] = await Promise.all(
+    const dataSources = await getDataSources()
+
+    for (const dataSource of dataSources) {
+      const { 
+        settings: { 
+          baseUrl,
+          commonHeaders: headers = {},
+        },
+      } = dataSource;
+        
+      if (isAgency(baseUrl)) {
+        console.log('GET', baseUrl);
+        const response = await (await fetch(
+            baseUrl, 
+            {
+              headers: { ...headers }  
+            }
+          )).json()
+          if (isCockpit(baseUrl)) {
+            items.push(...response.data.map(({ uuid }: any) => uuid));
+          } else if (isMLS(baseUrl)) {
+            items.push(...response?.items.map(({ idProject }: any) => idProject))
+          }
+      }
+    }
+
+    /*
+        const results = await Promise.all(
       response
         .filter(({settings: { baseUrl } }: any) => {
           return isAgency(baseUrl);
@@ -119,16 +145,23 @@ export const getStaticPaths: GetStaticPaths = async () => {
           if (isCockpit(baseUrl)) {
             return response.data.map(({ uuid }: any) => uuid) || [];
           } else if (isMLS(baseUrl)) {
-            return response?.items.map(({ idProject }: any) => idProject) || [];
+              return response?.items.map(({ idProject }: any) => idProject) || [];
           } else {
             return [];
           }
         }),
     );
+    console.log("RESULTS\n", results);
 
     items.push(
-      ...result
-    );
+      ...results[0]
+    );    
+    */
+
+
+
+    console.log("ITEMS");
+    console.log(items);
 
   } catch (ex) {
     console.error(ex);
